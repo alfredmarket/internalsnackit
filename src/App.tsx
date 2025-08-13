@@ -7,6 +7,7 @@ type Product = {
   imageUrl: string
   upvotes: number
   downvotes: number
+  date: string
 }
 
 function App() {
@@ -14,18 +15,39 @@ function App() {
   const [nameInput, setNameInput] = useState('')
   const [imageInput, setImageInput] = useState('')
 
+  function computeRequestedForDate(baseDate: Date = new Date()): Date {
+    const year = baseDate.getFullYear()
+    const monthIndex = baseDate.getMonth() // 0-11
+    const day = baseDate.getDate()
+    const lastDay = new Date(year, monthIndex + 1, 0).getDate()
+    const lastSevenStart = lastDay - 6
+    let targetMonthIndex = day >= lastSevenStart ? monthIndex + 2 : monthIndex + 1
+    let targetYear = year
+    if (targetMonthIndex >= 12) {
+      targetMonthIndex -= 12
+      targetYear += 1
+    }
+    return new Date(targetYear, targetMonthIndex, 1)
+  }
+
+  function formatMonthYear(date: Date): string {
+    return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  }
+
   function handleAddProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmedName = nameInput.trim()
     const trimmedImage = imageInput.trim()
     if (!trimmedName) return
 
+    const requestedFor = computeRequestedForDate(new Date())
     const newProduct: Product = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       name: trimmedName,
       imageUrl: trimmedImage || 'https://via.placeholder.com/300x200?text=Snack',
       upvotes: 0,
       downvotes: 0,
+      date: new Date(Date.UTC(requestedFor.getFullYear(), requestedFor.getMonth(), requestedFor.getDate())).toISOString(),
     }
     setProducts((prev) => [newProduct, ...prev])
     setNameInput('')
@@ -72,12 +94,21 @@ function App() {
             onChange={(e) => setImageInput(e.target.value)}
           />
         </div>
+        <div className="field">
+          <label>Requested for</label>
+          <input
+            type="text"
+            value={formatMonthYear(computeRequestedForDate(new Date()))}
+            readOnly
+          />
+        </div>
         <button className="add-btn" type="submit">Add Snack</button>
       </form>
 
       <div className="grid">
         {products.map((product) => {
           const netScore = product.upvotes - product.downvotes
+          const requestedForLabel = formatMonthYear(new Date(product.date))
           return (
             <div key={product.id} className="card">
               <div className="image-wrap">
@@ -93,6 +124,7 @@ function App() {
               </div>
               <div className="card-body">
                 <h3 className="product-name">{product.name}</h3>
+                <div className="requested-for">Requested for: {requestedForLabel}</div>
                 <div className="vote-bar">
                   <button className="vote-btn up" onClick={() => handleVote(product.id, 'up')} aria-label={`Thumbs up for ${product.name}`}>
                     👍
