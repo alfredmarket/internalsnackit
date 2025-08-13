@@ -7,7 +7,9 @@ import {
   query,
   orderBy,
   onSnapshot,
-  deleteDoc
+  deleteDoc,
+  where,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -52,9 +54,55 @@ export const getProducts = async (): Promise<Product[]> => {
   })) as Product[];
 };
 
+// Get products filtered by month
+export const getProductsByMonth = async (year: number, month: number): Promise<Product[]> => {
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+  
+  const startTimestamp = Timestamp.fromDate(startDate);
+  const endTimestamp = Timestamp.fromDate(endDate);
+  
+  const q = query(
+    collection(db, 'products'),
+    where('createdAt', '>=', startTimestamp),
+    where('createdAt', '<=', endTimestamp),
+    orderBy('createdAt', 'desc')
+  );
+  
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as Product[];
+};
+
 // Listen to products changes in real-time
 export const subscribeToProducts = (callback: (products: Product[]) => void) => {
   const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (querySnapshot) => {
+    const products = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Product[];
+    callback(products);
+  });
+};
+
+// Listen to products filtered by month in real-time
+export const subscribeToProductsByMonth = (year: number, month: number, callback: (products: Product[]) => void) => {
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+  
+  const startTimestamp = Timestamp.fromDate(startDate);
+  const endTimestamp = Timestamp.fromDate(endDate);
+  
+  const q = query(
+    collection(db, 'products'),
+    where('createdAt', '>=', startTimestamp),
+    where('createdAt', '<=', endTimestamp),
+    orderBy('createdAt', 'desc')
+  );
+  
   return onSnapshot(q, (querySnapshot) => {
     const products = querySnapshot.docs.map(doc => ({
       id: doc.id,

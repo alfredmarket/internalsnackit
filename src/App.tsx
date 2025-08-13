@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { signOutUser } from './firebase/auth'
-import { subscribeToProducts, addProduct, updateProduct, type Product } from './firebase/database'
+import { subscribeToProducts, subscribeToProductsByMonth, addProduct, updateProduct, type Product } from './firebase/database'
 import Auth from './components/Auth'
 import './App.css'
 import { Link } from 'react-router-dom'
-import { isAdmin } from './utils/auth'
 
 function formatMonthYear(date: Date): string {
   return new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(date)
@@ -13,7 +12,7 @@ function formatMonthYear(date: Date): string {
 
 type FirestoreTimestampLike = { toDate: () => Date }
 function isFirestoreTimestamp(value: unknown): value is FirestoreTimestampLike {
-  return typeof value === 'object' && value !== null && 'toDate' in (value as Record<string, unknown>) &&
+  return value instanceof Date || 
     typeof (value as { toDate?: unknown }).toDate === 'function'
 }
 
@@ -23,17 +22,33 @@ function App() {
   const [nameInput, setNameInput] = useState('')
   const [imageInput, setImageInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState<string>('')
 
   useEffect(() => {
     if (user) {
-      // Subscribe to real-time updates from Firestore
-      const unsubscribe = subscribeToProducts((products) => {
-        setProducts(products)
-      })
+      let unsubscribe: () => void
+      
+      if (selectedMonth) {
+        const [year, month] = selectedMonth.split('-').map(Number)
+        unsubscribe = subscribeToProductsByMonth(year, month, (products) => {
+          setProducts(products)
+        })
+      } else {
+        unsubscribe = subscribeToProducts((products) => {
+          setProducts(products)
+        })
+      }
 
       return () => unsubscribe()
     }
-  }, [user])
+  }, [user, selectedMonth])
+
+  // Get current month for default value
+  useEffect(() => {
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    setSelectedMonth(currentMonth)
+  }, [])
 
   async function handleAddProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -83,6 +98,14 @@ function App() {
     }
   }
 
+  const handleMonthChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedMonth(event.target.value)
+  }
+
+  const clearMonthFilter = () => {
+    setSelectedMonth('')
+  }
+
   if (loading) {
     return <div className="loading">Loading...</div>
   }
@@ -94,31 +117,24 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Snack Requester</h1>
-        <div className="user-info">
-          {isAdmin(user) && (
-            <Link to="/admin" className="sign-out-btn" style={{ textDecoration: 'none' }}>
-              Admin
-            </Link>
-          )}
-          <span>Welcome, {user.email}</span>
-          <button onClick={handleSignOut} className="sign-out-btn">
-            Sign Out
-          </button>
+        <h1>Snack Request</h1>
+        <div className="header-controls">
+          <Link to="/admin" className="admin-link">Admin</Link>
+          <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
         </div>
       </header>
 
-      <form className="add-form" onSubmit={handleAddProduct}>
+      <form onSubmit={handleAddProduct} className="add-form">
         <div className="field">
-          <label htmlFor="name">Product name</label>
+          <label htmlFor="name">Snack Name</label>
           <input
             id="name"
             type="text"
-            placeholder="e.g., Spicy Chips"
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
-            required
+            placeholder="Enter snack name"
             disabled={isLoading}
+            required
           />
         </div>
         <div className="field">
@@ -126,13 +142,34 @@ function App() {
           <input
             id="image"
             type="url"
-            placeholder="https://..."
             value={imageInput}
             onChange={(e) => setImageInput(e.target.value)}
+            placeholder="https://example.com/image.jpg"
             disabled={isLoading}
           />
         </div>
-        <button className="add-btn" type="submit" disabled={isLoading}>
+        <div className="field">
+          <label htmlFor="month">Filter by Month</label>
+          <div className="month-filter-controls">
+            <input
+              id="month"
+              type="month"
+              value={selectedMonth}
+              onChange={handleMonthChange}
+              className="month-input"
+            />
+            {selectedMonth && (
+              <button 
+                type="button" 
+                onClick={clearMonthFilter}
+                className="clear-filter-btn"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+        <button type="submit" className="add-btn" disabled={isLoading}>
           {isLoading ? 'Adding...' : 'Add Snack'}
         </button>
       </form>
@@ -157,7 +194,7 @@ function App() {
                   alt={product.name}
                   onError={(e) => {
                     const target = e.currentTarget
-                    target.src = 'https://via.placeholder.com/300x200?text=No+Image'
+                    target.src = 'https://via.placeholder.com/300x200?text=Snack'
                   }}
                 />
               </div>
@@ -182,7 +219,9 @@ function App() {
           )
         })}
         {products.length === 0 && (
-          <div className="empty">No snacks yet. Add your first one!</div>
+          <div className="empty">
+            {selectedMonth ? `No snacks added in ${formatMonthYear(new Date(selectedMonth + '-01'))}` : 'No snacks yet. Add your first one!'}
+          </div>
         )}
       </div>
     </div>

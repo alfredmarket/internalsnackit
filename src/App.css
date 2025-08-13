@@ -166,6 +166,22 @@
   margin-bottom: 1rem;
 }
 
+.header-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.admin-link {
+  color: #646cff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.admin-link:hover {
+  text-decoration: underline;
+}
+
 .add-form {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr auto;
@@ -194,6 +210,44 @@
 .field input:disabled {
   background: #f5f5f5;
   cursor: not-allowed;
+}
+
+.month-filter-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.month-input {
+  flex: 1;
+}
+
+.clear-filter-btn {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #f8f9fa;
+  color: #666;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.clear-filter-btn:hover {
+  background: #e9ecef;
+  color: #495057;
+}
+
+.month-filter-section {
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.month-filter-section .field {
+  margin: 0;
 }
 
 .add-btn {
