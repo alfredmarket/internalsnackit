@@ -123,6 +123,7 @@ function App() {
       <div className="grid">
         {products.map((product) => {
           const netScore = product.upvotes - product.downvotes
+          const requestedForLabel = formatMonthYear(new Date(product.date))
           return (
             <div key={product.id} className="card">
               <div className="image-wrap">
@@ -138,6 +139,7 @@ function App() {
               </div>
               <div className="card-body">
                 <h3 className="product-name">{product.name}</h3>
+                <div className="requested-for">Requested for: {requestedForLabel}</div>
                 <div className="vote-bar">
                   <button className="vote-btn up" onClick={() => handleVote(product.id!, 'up')} aria-label={`Thumbs up for ${product.name}`}>
                     👍
