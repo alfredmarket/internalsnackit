@@ -5,6 +5,16 @@ import { subscribeToProducts, addProduct, updateProduct, type Product } from './
 import Auth from './components/Auth'
 import './App.css'
 
+function formatMonthYear(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(date)
+}
+
+type FirestoreTimestampLike = { toDate: () => Date }
+function isFirestoreTimestamp(value: unknown): value is FirestoreTimestampLike {
+  return typeof value === 'object' && value !== null && 'toDate' in (value as Record<string, unknown>) &&
+    typeof (value as { toDate?: unknown }).toDate === 'function'
+}
+
 function App() {
   const { user, loading } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
@@ -123,6 +133,14 @@ function App() {
       <div className="grid">
         {products.map((product) => {
           const netScore = product.upvotes - product.downvotes
+          const createdAtUnknown = (product as { createdAt?: unknown }).createdAt
+          let monthLabel = 'Unknown'
+          if (createdAtUnknown instanceof Date) {
+            monthLabel = formatMonthYear(createdAtUnknown)
+          } else if (isFirestoreTimestamp(createdAtUnknown)) {
+            monthLabel = formatMonthYear(createdAtUnknown.toDate())
+          }
+
           return (
             <div key={product.id} className="card">
               <div className="image-wrap">
@@ -138,6 +156,7 @@ function App() {
               </div>
               <div className="card-body">
                 <h3 className="product-name">{product.name}</h3>
+                <div className="requested-for">Added: {monthLabel}</div>
                 <div className="vote-bar">
                   <button className="vote-btn up" onClick={() => handleVote(product.id!, 'up')} aria-label={`Thumbs up for ${product.name}`}>
                     👍
