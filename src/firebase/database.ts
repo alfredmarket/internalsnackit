@@ -21,13 +21,38 @@ export type Product = {
   downvotes: number;
   userId?: string;
   createdAt?: Date;
+  effectiveOrderMonth?: Date; // The month this snack will be ordered
 };
 
+// Calculate the effective month for ordering based on business rules
+// Orders close 7 days before month end
+export function calculateEffectiveOrderMonth(requestDate: Date): Date {
+  const currentMonth = requestDate.getMonth();
+  const currentYear = requestDate.getFullYear();
+  const currentDay = requestDate.getDate();
+  
+  // Calculate the deadline for the current month (7 days before month end)
+  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const deadlineDay = lastDayOfMonth - 7;
+  
+  if (currentDay <= deadlineDay) {
+    // Request is before deadline, goes to next month's order
+    return new Date(currentYear, currentMonth + 1, 1);
+  } else {
+    // Request is after deadline, goes to month after next month's order
+    return new Date(currentYear, currentMonth + 2, 1);
+  }
+}
+
 // Add a new product
-export const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>): Promise<string> => {
+export const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'effectiveOrderMonth'>): Promise<string> => {
+  const now = new Date();
+  const effectiveMonth = calculateEffectiveOrderMonth(now);
+  
   const docRef = await addDoc(collection(db, 'products'), {
     ...product,
-    createdAt: new Date()
+    createdAt: now,
+    effectiveOrderMonth: effectiveMonth
   });
   return docRef.id;
 };
@@ -54,7 +79,7 @@ export const getProducts = async (): Promise<Product[]> => {
   })) as Product[];
 };
 
-// Get products filtered by month
+// Get products filtered by month (using effective order month)
 export const getProductsByMonth = async (year: number, month: number): Promise<Product[]> => {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59, 999);
@@ -64,9 +89,9 @@ export const getProductsByMonth = async (year: number, month: number): Promise<P
   
   const q = query(
     collection(db, 'products'),
-    where('createdAt', '>=', startTimestamp),
-    where('createdAt', '<=', endTimestamp),
-    orderBy('createdAt', 'desc')
+    where('effectiveOrderMonth', '>=', startTimestamp),
+    where('effectiveOrderMonth', '<=', endTimestamp),
+    orderBy('effectiveOrderMonth', 'desc')
   );
   
   const querySnapshot = await getDocs(q);
@@ -88,7 +113,7 @@ export const subscribeToProducts = (callback: (products: Product[]) => void) => 
   });
 };
 
-// Listen to products filtered by month in real-time
+// Listen to products filtered by month in real-time (using effective order month)
 export const subscribeToProductsByMonth = (year: number, month: number, callback: (products: Product[]) => void) => {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59, 999);
@@ -98,9 +123,9 @@ export const subscribeToProductsByMonth = (year: number, month: number, callback
   
   const q = query(
     collection(db, 'products'),
-    where('createdAt', '>=', startTimestamp),
-    where('createdAt', '<=', endTimestamp),
-    orderBy('createdAt', 'desc')
+    where('effectiveOrderMonth', '>=', startTimestamp),
+    where('effectiveOrderMonth', '<=', endTimestamp),
+    orderBy('effectiveOrderMonth', 'desc')
   );
   
   return onSnapshot(q, (querySnapshot) => {

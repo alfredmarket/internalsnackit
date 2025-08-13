@@ -9,6 +9,21 @@ function formatMonthYear(date: Date): string {
   return new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(date)
 }
 
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, { 
+    month: 'short', 
+    day: 'numeric',
+    year: 'numeric' 
+  }).format(date)
+}
+
+type FirestoreTimestampLike = { toDate: () => Date }
+
+function isFirestoreTimestamp(value: unknown): value is FirestoreTimestampLike {
+  return value instanceof Date || 
+    typeof (value as { toDate?: unknown }).toDate === 'function'
+}
+
 export default function AdminPage() {
   const { user, loading } = useAuth()
   const navigate = useNavigate()
@@ -82,7 +97,7 @@ export default function AdminPage() {
 
       <div className="month-filter-section">
         <div className="field">
-          <label htmlFor="admin-month">Filter by Month</label>
+          <label htmlFor="admin-month">Filter by Order Month</label>
           <div className="month-filter-controls">
             <input
               id="admin-month"
@@ -108,6 +123,25 @@ export default function AdminPage() {
         {products.map((product) => {
           const net = product.upvotes - product.downvotes
           const isSubmitting = submittingId === product.id
+          
+          const createdAtUnknown = (product as { createdAt?: unknown }).createdAt
+          const effectiveOrderMonthUnknown = (product as { effectiveOrderMonth?: unknown }).effectiveOrderMonth
+          
+          let requestDateLabel = 'Unknown'
+          let orderMonthLabel = 'Unknown'
+          
+          if (createdAtUnknown instanceof Date) {
+            requestDateLabel = formatDate(createdAtUnknown)
+          } else if (isFirestoreTimestamp(createdAtUnknown)) {
+            requestDateLabel = formatDate(createdAtUnknown.toDate())
+          }
+          
+          if (effectiveOrderMonthUnknown instanceof Date) {
+            orderMonthLabel = formatMonthYear(effectiveOrderMonthUnknown)
+          } else if (isFirestoreTimestamp(effectiveOrderMonthUnknown)) {
+            orderMonthLabel = formatMonthYear(effectiveOrderMonthUnknown.toDate())
+          }
+          
           return (
             <div key={product.id} className="card">
               <div className="image-wrap">
@@ -115,6 +149,8 @@ export default function AdminPage() {
               </div>
               <div className="card-body">
                 <h3 className="product-name">{product.name}</h3>
+                <div className="requested-for">Requested: {requestDateLabel}</div>
+                <div className="order-month">For: {orderMonthLabel} Order</div>
                 <div className="vote-bar">
                   <span className="count up-count" title="Upvotes">👍 {product.upvotes}</span>
                   <span className="count down-count" title="Downvotes">👎 {product.downvotes}</span>
@@ -133,7 +169,7 @@ export default function AdminPage() {
         })}
         {products.length === 0 && (
           <div className="empty">
-            {selectedMonth ? `No products to purchase in ${formatMonthYear(new Date(selectedMonth + '-01'))}` : 'No products to purchase'}
+            {selectedMonth ? `No products for ${formatMonthYear(new Date(selectedMonth + '-01'))} order` : 'No products to purchase'}
           </div>
         )}
       </div>

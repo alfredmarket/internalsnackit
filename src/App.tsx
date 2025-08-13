@@ -10,6 +10,14 @@ function formatMonthYear(date: Date): string {
   return new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(date)
 }
 
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, { 
+    month: 'short', 
+    day: 'numeric',
+    year: 'numeric' 
+  }).format(date)
+}
+
 type FirestoreTimestampLike = { toDate: () => Date }
 function isFirestoreTimestamp(value: unknown): value is FirestoreTimestampLike {
   return value instanceof Date || 
@@ -106,6 +114,35 @@ function App() {
     setSelectedMonth('')
   }
 
+  // Get current deadline info for display
+  const getCurrentDeadlineInfo = () => {
+    const now = new Date()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+    const currentDay = now.getDate()
+    
+    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+    const deadlineDay = lastDayOfMonth - 7
+    const deadlineDate = new Date(currentYear, currentMonth, deadlineDay)
+    
+    const nextOrderMonth = new Date(currentYear, currentMonth + 1, 1)
+    const nextOrderMonthName = formatMonthYear(nextOrderMonth)
+    
+    if (currentDay <= deadlineDay) {
+      return {
+        message: `Requests due by ${formatDate(deadlineDate)} for ${nextOrderMonthName} order`,
+        isBeforeDeadline: true
+      }
+    } else {
+      const monthAfterNext = new Date(currentYear, currentMonth + 2, 1)
+      const monthAfterNextName = formatMonthYear(monthAfterNext)
+      return {
+        message: `Next order deadline passed. Requests now go to ${monthAfterNextName} order`,
+        isBeforeDeadline: false
+      }
+    }
+  }
+
   if (loading) {
     return <div className="loading">Loading...</div>
   }
@@ -113,6 +150,8 @@ function App() {
   if (!user) {
     return <Auth onAuthSuccess={() => {}} />
   }
+
+  const deadlineInfo = getCurrentDeadlineInfo()
 
   return (
     <div className="app">
@@ -123,6 +162,12 @@ function App() {
           <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
         </div>
       </header>
+
+      <div className="deadline-info">
+        <div className={`deadline-message ${deadlineInfo.isBeforeDeadline ? 'before-deadline' : 'after-deadline'}`}>
+          {deadlineInfo.message}
+        </div>
+      </div>
 
       <form onSubmit={handleAddProduct} className="add-form">
         <div className="field">
@@ -149,7 +194,7 @@ function App() {
           />
         </div>
         <div className="field">
-          <label htmlFor="month">Filter by Month</label>
+          <label htmlFor="month">Filter by Order Month</label>
           <div className="month-filter-controls">
             <input
               id="month"
@@ -178,11 +223,21 @@ function App() {
         {products.map((product) => {
           const netScore = product.upvotes - product.downvotes
           const createdAtUnknown = (product as { createdAt?: unknown }).createdAt
-          let monthLabel = 'Unknown'
+          const effectiveOrderMonthUnknown = (product as { effectiveOrderMonth?: unknown }).effectiveOrderMonth
+          
+          let requestDateLabel = 'Unknown'
+          let orderMonthLabel = 'Unknown'
+          
           if (createdAtUnknown instanceof Date) {
-            monthLabel = formatMonthYear(createdAtUnknown)
+            requestDateLabel = formatDate(createdAtUnknown)
           } else if (isFirestoreTimestamp(createdAtUnknown)) {
-            monthLabel = formatMonthYear(createdAtUnknown.toDate())
+            requestDateLabel = formatDate(createdAtUnknown.toDate())
+          }
+          
+          if (effectiveOrderMonthUnknown instanceof Date) {
+            orderMonthLabel = formatMonthYear(effectiveOrderMonthUnknown)
+          } else if (isFirestoreTimestamp(effectiveOrderMonthUnknown)) {
+            orderMonthLabel = formatMonthYear(effectiveOrderMonthUnknown.toDate())
           }
 
           return (
@@ -200,7 +255,8 @@ function App() {
               </div>
               <div className="card-body">
                 <h3 className="product-name">{product.name}</h3>
-                <div className="requested-for">Added: {monthLabel}</div>
+                <div className="requested-for">Requested: {requestDateLabel}</div>
+                <div className="order-month">For: {orderMonthLabel} Order</div>
                 <div className="vote-bar">
                   <button className="vote-btn up" onClick={() => handleVote(product.id!, 'up')} aria-label={`Thumbs up for ${product.name}`}>
                     👍
@@ -220,7 +276,7 @@ function App() {
         })}
         {products.length === 0 && (
           <div className="empty">
-            {selectedMonth ? `No snacks added in ${formatMonthYear(new Date(selectedMonth + '-01'))}` : 'No snacks yet. Add your first one!'}
+            {selectedMonth ? `No snacks for ${formatMonthYear(new Date(selectedMonth + '-01'))} order` : 'No snacks yet. Add your first one!'}
           </div>
         )}
       </div>
