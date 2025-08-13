@@ -4,6 +4,8 @@ import { signOutUser } from './firebase/auth'
 import { subscribeToProducts, addProduct, updateProduct, type Product } from './firebase/database'
 import Auth from './components/Auth'
 import './App.css'
+import { Link } from 'react-router-dom'
+import { isAdmin } from './utils/auth'
 
 function formatMonthYear(date: Date): string {
   return new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(date)
@@ -94,6 +96,11 @@ function App() {
       <header className="app-header">
         <h1>Snack Requester</h1>
         <div className="user-info">
+          {isAdmin(user) && (
+            <Link to="/admin" className="sign-out-btn" style={{ textDecoration: 'none' }}>
+              Admin
+            </Link>
+          )}
           <span>Welcome, {user.email}</span>
           <button onClick={handleSignOut} className="sign-out-btn">
             Sign Out
