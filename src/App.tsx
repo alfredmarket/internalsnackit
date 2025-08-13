@@ -1,54 +1,95 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useAuth } from './hooks/useAuth'
+import { signOutUser } from './firebase/auth'
+import { subscribeToProducts, addProduct, updateProduct, type Product } from './firebase/database'
+import Auth from './components/Auth'
 import './App.css'
 
-type Product = {
-  id: string
-  name: string
-  imageUrl: string
-  upvotes: number
-  downvotes: number
-}
-
 function App() {
+  const { user, loading } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [nameInput, setNameInput] = useState('')
   const [imageInput, setImageInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
-  function handleAddProduct(event: React.FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    if (user) {
+      // Subscribe to real-time updates from Firestore
+      const unsubscribe = subscribeToProducts((products) => {
+        setProducts(products)
+      })
+
+      return () => unsubscribe()
+    }
+  }, [user])
+
+  async function handleAddProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const trimmedName = nameInput.trim()
     const trimmedImage = imageInput.trim()
-    if (!trimmedName) return
+    if (!trimmedName || !user) return
 
-    const newProduct: Product = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      name: trimmedName,
-      imageUrl: trimmedImage || 'https://via.placeholder.com/300x200?text=Snack',
-      upvotes: 0,
-      downvotes: 0,
+    setIsLoading(true)
+    try {
+      await addProduct({
+        name: trimmedName,
+        imageUrl: trimmedImage || 'https://via.placeholder.com/300x200?text=Snack',
+        upvotes: 0,
+        downvotes: 0,
+        userId: user.uid
+      })
+      setNameInput('')
+      setImageInput('')
+    } catch (error) {
+      console.error('Error adding product:', error)
+    } finally {
+      setIsLoading(false)
     }
-    setProducts((prev) => [newProduct, ...prev])
-    setNameInput('')
-    setImageInput('')
   }
 
-  function handleVote(productId: string, type: 'up' | 'down') {
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === productId
-          ? {
-              ...p,
-              upvotes: type === 'up' ? p.upvotes + 1 : p.upvotes,
-              downvotes: type === 'down' ? p.downvotes + 1 : p.downvotes,
-            }
-          : p,
-      ),
-    )
+  async function handleVote(productId: string, type: 'up' | 'down') {
+    if (!productId) return
+
+    const product = products.find(p => p.id === productId)
+    if (!product) return
+
+    try {
+      await updateProduct(productId, {
+        upvotes: type === 'up' ? product.upvotes + 1 : product.upvotes,
+        downvotes: type === 'down' ? product.downvotes + 1 : product.downvotes,
+      })
+    } catch (error) {
+      console.error('Error updating vote:', error)
+    }
+  }
+
+  const handleSignOut = async () => {
+    try {
+      await signOutUser()
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
+
+  if (loading) {
+    return <div className="loading">Loading...</div>
+  }
+
+  if (!user) {
+    return <Auth onAuthSuccess={() => {}} />
   }
 
   return (
     <div className="app">
-      <h1>Snack Requester</h1>
+      <header className="app-header">
+        <h1>Snack Requester</h1>
+        <div className="user-info">
+          <span>Welcome, {user.email}</span>
+          <button onClick={handleSignOut} className="sign-out-btn">
+            Sign Out
+          </button>
+        </div>
+      </header>
 
       <form className="add-form" onSubmit={handleAddProduct}>
         <div className="field">
@@ -60,6 +101,7 @@ function App() {
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
             required
+            disabled={isLoading}
           />
         </div>
         <div className="field">
@@ -70,9 +112,12 @@ function App() {
             placeholder="https://..."
             value={imageInput}
             onChange={(e) => setImageInput(e.target.value)}
+            disabled={isLoading}
           />
         </div>
-        <button className="add-btn" type="submit">Add Snack</button>
+        <button className="add-btn" type="submit" disabled={isLoading}>
+          {isLoading ? 'Adding...' : 'Add Snack'}
+        </button>
       </form>
 
       <div className="grid">
@@ -94,11 +139,11 @@ function App() {
               <div className="card-body">
                 <h3 className="product-name">{product.name}</h3>
                 <div className="vote-bar">
-                  <button className="vote-btn up" onClick={() => handleVote(product.id, 'up')} aria-label={`Thumbs up for ${product.name}`}>
+                  <button className="vote-btn up" onClick={() => handleVote(product.id!, 'up')} aria-label={`Thumbs up for ${product.name}`}>
                     👍
                   </button>
                   <span className="count up-count" title="Upvotes">{product.upvotes}</span>
-                  <button className="vote-btn down" onClick={() => handleVote(product.id, 'down')} aria-label={`Thumbs down for ${product.name}`}>
+                  <button className="vote-btn down" onClick={() => handleVote(product.id!, 'down')} aria-label={`Thumbs down for ${product.name}`}>
                     👎
                   </button>
                   <span className="count down-count" title="Downvotes">{product.downvotes}</span>
